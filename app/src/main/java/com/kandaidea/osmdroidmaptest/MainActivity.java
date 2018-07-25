@@ -30,6 +30,7 @@ import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
 import java.util.ArrayList;
+import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity
 {
@@ -49,7 +50,18 @@ public class MainActivity extends AppCompatActivity
         mMapView.setTileSource(new XYTileSource("online", 0, 18, 256, ".png", urlArray  ));
         mMapView.setTilesScaleFactor(.5f);*/
         mMapView.setScrollableAreaLimitDouble(new BoundingBox(85.05112877980659, 180.0d,-85.05112877980659,-180.0d));
-        new OsmMapView(getApplicationContext(), mMapView, this).setUpMap();
+        try
+        {
+            new OsmMapView(getApplicationContext(), mMapView, this).setUpMap();
+        }
+        catch (ExecutionException e)
+        {
+            e.printStackTrace();
+        }
+        catch (InterruptedException e)
+        {
+            e.printStackTrace();
+        }
     }
 
     @Override
