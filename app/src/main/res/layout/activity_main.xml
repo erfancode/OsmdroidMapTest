@@ -12,15 +12,23 @@
         android:id="@+id/map"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        >
-    </org.osmdroid.views.MapView>
+        tools:layout_editor_absoluteX="886dp"
+        tools:layout_editor_absoluteY="0dp"></org.osmdroid.views.MapView>
+    <ImageView
+        android:id="@+id/camera-capture"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:src="@drawable/ic_menu_mylocation"
+        app:layout_constraintBottom_toTopOf="@id/search_bar"
+        app:layout_constraintLeft_toLeftOf="parent"/>
     <SeekBar
         android:id="@+id/seekBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:min="0"
         android:max="100"
-        app:layout_constraintBottom_toBottomOf="parent"/>
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:progress="50"/>
     <SearchView
         android:id="@+id/search_bar"
         android:layout_width="match_parent"

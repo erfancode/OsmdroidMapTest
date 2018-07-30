@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
@@ -17,13 +18,19 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.ImageView;
 import android.widget.SearchView;
 import android.widget.SeekBar;
 import android.widget.Toast;
 
 
 import com.gmail.samehadar.iosdialog.CamomileSpinner;
+import com.kandaidea.osmdroidmaptest.Models.SectorModel;
 import com.kandaidea.osmdroidmaptest.R;
+import com.kandaidea.osmdroidmaptest.Realm.realmObjects.Sector;
+import com.kandaidea.osmdroidmaptest.Retrofit.APIClient;
+import com.kandaidea.osmdroidmaptest.Retrofit.GetJsonresult;
+import com.kandaidea.osmdroidmaptest.Retrofit.RetrofitMethods;
 
 import org.osmdroid.api.IMapController;
 import org.osmdroid.bonuspack.BuildConfig;
@@ -62,8 +69,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import retrofit2.Call;
+import retrofit2.Response;
 
-public class OsmMapView
+
+public class OsmMapView extends APIClient
 {
     private static final String TAG = OsmMapView.class.getSimpleName();
     private MapView mMapView;
@@ -72,6 +82,9 @@ public class OsmMapView
     private Polygon areaPolygon = new Polygon();
     private ArrayList<Marker> areaPolygonMarkers = new ArrayList<>();
     private Boolean firstLong = true;
+    private Polygon tehranPolygon = new Polygon();
+    private ArrayList<SectorModel> sectors ;
+    private ArrayList<Polygon> sectorPolygons = new ArrayList<>();
 
     public OsmMapView(Context mContext, MapView mMapView, Activity mActivity)
     {
@@ -81,6 +94,24 @@ public class OsmMapView
         //use for manage resources
         org.osmdroid.config.Configuration.getInstance().setUserAgentValue(BuildConfig.APPLICATION_ID);
         areaPolygon.setFillColor(Color.RED);
+        new RetrofitMethods().getSectors(new GetJsonresult()
+        {
+            @Override
+            public void JsonResultSec(Response<List<SectorModel>> body)
+            {
+                if(body.isSuccessful())
+                {
+                    sectors = new ArrayList<>(body.body());
+                    drawSectors();
+                }
+            }
+
+            @Override
+            public void JsonResultFail(Call<List<SectorModel>> call, Throwable t)
+            {
+                Log.e(TAG, "failedToGetSectorDataFromServer");
+            }
+        });
     }
 
     protected static float cleanValue(float p_val, float p_limit)
@@ -114,6 +145,8 @@ public class OsmMapView
     @RequiresApi(api = Build.VERSION_CODES.M)
     public void setUpMap() throws ExecutionException, InterruptedException
     {
+
+        /*
         MapEventsReceiver mer = new MapEventsReceiver()
         {
             @Override
@@ -132,49 +165,61 @@ public class OsmMapView
                 Marker newMarker = new Marker(mMapView);
                 newMarker.setPosition(p);
                 newMarker.setDraggable(true);
+                newMarker.setIcon(mContext.getResources().getDrawable(R.drawable.ic_marker_edge_polygon));
+                newMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
                 newMarker.setOnMarkerDragListener(new Marker.OnMarkerDragListener()
                 {
                     @Override
                     public void onMarkerDrag(Marker marker)
                     {
-                        Log.d(TAG, "ondraging");
+                        Log.d(TAG, "onMarkerDrag");
                     }
 
                     @Override
                     public void onMarkerDragEnd(Marker marker)
                     {
-                        Log.d(TAG, "dragingEnd");
+                        Log.d(TAG, "onMarkerDragEnd");
 
                         int index = areaPolygonMarkers.indexOf(marker);
                         GeoPoint p = marker.getPosition();
-                        areaPolygon.getPoints().set(index, p);
+                        List<GeoPoint> x = areaPolygon.getPoints();
+                        Log.d(TAG, "sizeOfPolygon is : " + x.size());
+                        x.set(index, p);
+                        Polygon poly = new Polygon();
+                        poly.setPoints(x);
+                        poly.setFillColor(Color.RED);
+                        areaPolygon = poly;
                         mMapView.getOverlays().add(areaPolygon);
+                        mMapView.getOverlays().remove(areaPolygonMarkers);
+                        mMapView.getOverlays().addAll(areaPolygonMarkers);
                         mMapView.invalidate();
                     }
 
                     @Override
                     public void onMarkerDragStart(Marker marker)
                     {
-                        Log.d(TAG, "dragingStarted");
+                        Log.d(TAG, "onMarkerDragStart");
                         mMapView.getOverlays().remove(areaPolygon);
                         mMapView.invalidate();
                     }
                 });
+                mMapView.getOverlays().remove(areaPolygonMarkers);
                 areaPolygonMarkers.add(newMarker);
                 areaPolygon.addPoint(p);
                 mMapView.getOverlays().add(areaPolygon);
-                mMapView.getOverlays().add(newMarker);
+                mMapView.getOverlays().addAll(areaPolygonMarkers);
                 mMapView.invalidate();
-                /*Toast.makeText(mContext, "clicked : " + p.getLatitude() + " " + p.getLongitude()+ " and copied to clipboard",Toast.LENGTH_LONG).show();
-                ClipboardManager clipboard = (ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
-                ClipData clip = ClipData.newPlainText("", String.valueOf(p.getLatitude()) + "," + String.valueOf(p.getLongitude()));
-                clipboard.setPrimaryClip(clip);*/
+                //Toast.makeText(mContext, "clicked : " + p.getLatitude() + " " + p.getLongitude()+ " and copied to clipboard",Toast.LENGTH_LONG).show();
+                //ClipboardManager clipboard = (ClipboardManager) mContext.getSystemService(Context.CLIPBOARD_SERVICE);
+                //ClipData clip = ClipData.newPlainText("", String.valueOf(p.getLatitude()) + "," + String.valueOf(p.getLongitude()));
+                //clipboard.setPrimaryClip(clip);
                 return false;
             }
         };
+
         MapEventsOverlay OverlayEventos = new MapEventsOverlay(mContext, mer);
         mMapView.getOverlays().add(OverlayEventos);
-
+        */
         mMapView.setTileSource(TileSourceFactory.DEFAULT_TILE_SOURCE);
 
 
@@ -229,7 +274,6 @@ public class OsmMapView
             }
         });
 
-       // mMapView.setTileSource(TileSourceFactory.USGS_SAT);
         mMapView.setMinZoomLevel((double) 5);
         mMapView.setBuiltInZoomControls(false);
         mMapView.setMultiTouchControls(true);
@@ -237,18 +281,14 @@ public class OsmMapView
         rgv.setEnabled(true);
         mMapView.getOverlays().add(rgv);
         //add my location + compass
-        MyLocationNewOverlay myLocationNewOverlay = new MyLocationNewOverlay(new GpsMyLocationProvider(mContext), mMapView);
-        myLocationNewOverlay.enableMyLocation();
-        /*CompassOverlay mCompas = new CompassOverlay(mContext, new InternalCompassOrientationProvider(mContext), mMapView);
-        mCompas.enableCompass();
-        */
-        mMapView.getOverlays().add(myLocationNewOverlay);
-
-        //enable rotation gesture
+        //MyLocationNewOverlay myLocationNewOverlay = new MyLocationNewOverlay(new GpsMyLocationProvider(mContext), mMapView);
+        //myLocationNewOverlay.enableMyLocation();
+        //CompassOverlay mCompas = new CompassOverlay(mContext, new InternalCompassOrientationProvider(mContext), mMapView);
+        //mCompas.enableCompass();
+        //mMapView.getOverlays().add(myLocationNewOverlay);
 
 
-
-
+        /*
         ArrayList<OverlayItem> items = new ArrayList<OverlayItem>();
         items.add(new OverlayItem("Title1", "Description1", new GeoPoint(0.0d,0.0d)));
         items.add(new OverlayItem("Title2", "Description2", new GeoPoint(50.0d,30.0d)));
@@ -273,18 +313,15 @@ public class OsmMapView
                 });
         mOverlay.setFocusItemsOnTap(true);
         mMapView.getOverlays().add(mOverlay);
+        */
 
-
-        GeoPoint startPoint = new GeoPoint(48.13, -1.63);
         final IMapController mapController = mMapView.getController();
         mapController.setZoom(9);
-        mapController.setCenter(startPoint);
 
         //makeRoad(new GeoPoint(35.71d, 51.37d), new GeoPoint(35.46d, 51d));
         //new GetData().execute();
         final Polygon circle = new Polygon(mMapView);
         circle.setPoints(Polygon.pointsAsCircle(new GeoPoint(35.764333d,50.914012d), 1000.0));
-
         circle.setStrokeColor(Color.BLACK);
         circle.setStrokeWidth(20);
 
@@ -295,9 +332,7 @@ public class OsmMapView
         final Polygon[] polygons = new Polygon[3];
         final Polygon[] polygonss = new Polygon[3];
 
-        final Marker centerPolygons = new Marker(mMapView);
-        centerPolygons.setPosition(new GeoPoint(35.764333d,50.914012d));
-        centerPolygons.setIcon(mContext.getResources().getDrawable(R.mipmap.ic_radio));
+
         for(int i = 0; i < 3; i++)
         {
             Polygon polygon1 = getSectorPolygon(new GeoPoint(35.764333d,50.914012d),1000,i * 120, 60,"ALB0011-MU-A");
@@ -408,7 +443,7 @@ public class OsmMapView
             }
         });
 
-
+        /*
         mapController.setCenter(new GeoPoint(35.764333d,50.914012d));
         mapController.setZoom(15.6f);
         //new GetTile().execute();
@@ -421,17 +456,63 @@ public class OsmMapView
             {
                 List<Address> addresses = searchForAddress(String.valueOf(searchView.getQuery()));
                 Address res = addresses.get(0);
+
                 if(res != null)
                 {
-                    Marker tehran = new Marker(mMapView);
-                    tehran.setPosition(new GeoPoint(res.getLatitude(), res.getLongitude()));
-                    mMapView.getOverlays().add(tehran);
                     ArrayList<GeoPoint> polygonPoints = res.getExtras().getParcelableArrayList("polygonpoints");
+                    final ArrayList<Marker> markersPolygonPoints = new ArrayList<>();
+
                     if(polygonPoints.size() != 0 && polygonPoints != null)
                     {
-                        Polygon tehranPolygon = new Polygon();
-                        tehranPolygon.setPoints(PointReducer.reduceWithTolerance(polygonPoints, .00001));
+
+                        tehranPolygon.setPoints(PointReducer.reduceWithTolerance(polygonPoints, .0001));
+                        for(GeoPoint p : tehranPolygon.getPoints())
+                        {
+                            Marker newMarker = new Marker(mMapView);
+                            newMarker.setPosition(p);
+                            newMarker.setIcon(mContext.getResources().getDrawable(R.drawable.ic_marker_edge_polygon));
+                            newMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
+                            newMarker.setDraggable(true);
+                            newMarker.setOnMarkerDragListener(new Marker.OnMarkerDragListener()
+                            {
+                                @Override
+                                public void onMarkerDrag(Marker marker)
+                                {
+
+                                }
+
+                                @Override
+                                public void onMarkerDragEnd(Marker marker)
+                                {
+                                    int index = markersPolygonPoints.indexOf(marker);
+                                    GeoPoint p = marker.getPosition();
+                                    List<GeoPoint> x = tehranPolygon.getPoints();
+                                    x.set(index, p);
+                                    Polygon poly = new Polygon();
+                                    poly.setPoints(x);
+                                    poly.setStrokeColor(Color.BLUE);
+                                    poly.setStrokeWidth(2);
+                                    tehranPolygon = poly;
+                                    mMapView.getOverlays().add(tehranPolygon);
+                                    mMapView.getOverlays().remove(markersPolygonPoints);
+                                    mMapView.getOverlays().addAll(markersPolygonPoints);
+                                    mMapView.invalidate();
+                                }
+
+                                @Override
+                                public void onMarkerDragStart(Marker marker)
+                                {
+                                    mMapView.getOverlays().remove(tehranPolygon);
+                                    mMapView.invalidate();
+                                }
+                            });
+                            markersPolygonPoints.add(newMarker);
+                        }
+                        tehranPolygon.setStrokeColor(Color.BLUE);
+                        tehranPolygon.setStrokeWidth(2);
                         mMapView.getOverlays().add(tehranPolygon);
+                        mMapView.getOverlays().addAll(markersPolygonPoints);
+                        mMapView.invalidate();
                     }
                     mapController.setCenter(new GeoPoint(res.getLatitude(), res.getLongitude()));
                     mapController.setZoom(12.0f);
@@ -444,10 +525,7 @@ public class OsmMapView
             {
                 return false;
             }
-        });
-
-
-
+        });*/
     }
 
     public void makeRoad(GeoPoint start, GeoPoint end)
@@ -574,14 +652,14 @@ public class OsmMapView
         GeoPoint point1 = new GeoPoint(lat2, lon2);
         return point1;
     }
-    private Polygon getSectorPolygon(GeoPoint base, int rad, int azimuth , int hbw, String name)
+    private Polygon getSectorPolygon(GeoPoint base, double rad, float azimuth , float hbw, String name)
     {
         Polygon polygon = new Polygon(mMapView);
         polygon.addPoint(base);
-        int times = hbw * 5;
+        int times = (int) (hbw * 5);
         for(int i = 0; i <= times;i++)
         {
-            polygon.addPoint(getEdge(base, rad, (i * 0.2) + azimuth - (hbw / 2)));
+            polygon.addPoint(getEdge(base, (int) rad, (i * 0.2) + azimuth - (hbw / 2)));
         }
         return polygon;
     }
@@ -619,5 +697,28 @@ public class OsmMapView
             e.printStackTrace();
         }
         return null;
+    }
+
+    public void drawSectors()
+    {
+        if(sectors.size() != 0 && sectors != null)
+        {
+            for(int i = 0; i < sectors.size(); i++)
+            {
+                SectorModel model = sectors.get(i);
+                Polygon newPoly = getSectorPolygon(new GeoPoint(model.getX(),model.getY()), model.getR(), model.getAzimuth(), model.gethBW(), " " );
+                sectorPolygons.add(newPoly);
+
+            }
+            if(mMapView.getOverlays().contains(sectorPolygons.get(0)))
+            {
+                //mMapView.getOverlays().remove(sectorPolygons);
+            }
+            else
+            {
+                mMapView.getOverlays().addAll(sectorPolygons);
+
+            }
+        }
     }
 }
